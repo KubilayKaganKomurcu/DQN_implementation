@@ -45,13 +45,13 @@ class DQN:
         observation_size = observation.shape[0]
         return observation, observation_size
 
-    def initialize_network(self, observation_size):
-        states = tf.placeholder(tf.float32, shape=(self.batch_size, observation_size), name='state')
-        states_next = tf.placeholder(tf.float32, shape=(self.batch_size, observation_size), name='state_next')
-        actions = tf.placeholder(tf.int32, shape=(self.batch_size,), name='action')
-        rewards = tf.placeholder(tf.float32, shape=(self.batch_size,), name='reward')
-        # done = tf.placeholder(tf.float32, shape=(batch_size,), name='done')
-        targets = tf.placeholder(tf.float32, shape=(self.batch_size,), name='target')
+    def initialize_network(self, input_size):
+        states = tf.placeholder(tf.float32, shape=(None, input_size), name='state')
+        states_next = tf.placeholder(tf.float32, shape=(None, input_size), name='state_next')
+        actions = tf.placeholder(tf.int32, shape=(None), name='action')
+        rewards = tf.placeholder(tf.float32, shape=(None), name='reward')
+        # done = tf.placeholder(tf.float32, shape=(None,), name='done')
+        targets = tf.placeholder(tf.float32, shape=(None), name='target')
 
         buffer = [states, actions, rewards, states_next, targets]
 
@@ -77,9 +77,9 @@ class DQN:
         targets = buffer[4]
 
         for layer in self.layers:
-            X = layer.forward(states)
+            states = layer.forward(states)
 
-        calculated_net = X
+        calculated_net = states
 
         one_hot_vector_actions = tf.one_hot(actions, 2)
         selected_action = tf.reduce_sum(targets * one_hot_vector_actions, reduction_indices=[1])
@@ -92,7 +92,7 @@ class DQN:
 
         return calculated_net, optimizer
 
-    def EpsGreedy(self, observation, env, eps_start=1):
+    def EpsGreedy(self, buffer, calculated_net, observation, env, eps_start=1):
 
         eps = eps_start / (np.sqrt(self.N + 1))
         prob = np.random.random()
@@ -101,14 +101,15 @@ class DQN:
             action = env.action_space.sample()
         else:
             obs = np.atleast_2d(observation)
-            action = np.argmax(self.predict(obs)[0])
+            action = np.argmax(self.predict(obs, calculated_net, buffer)[0])
 
         self.N += 1
         return action
 
     def predict(self, state, calculated_net, buffer):
+        actions = buffer[0]
         two_d_state = np.atleast_2d(state)
-        return self.session.run(calculated_net, feed_dict={buffer[0]: two_d_state})
+        return self.session.run(calculated_net, feed_dict={actions: two_d_state})
 
     def train(self, target, optimizer, buffer):
 
@@ -144,13 +145,13 @@ class DQN:
         self.session.run(ops)
 
 
-def play_one(env, model, train_model, eps, copy_period, optimizer, buffer):
+def play_one(env, model, train_model, eps, copy_period, optimizer, buffer, calculated_net):
     observation = env.reset()
     done = False
     total_reward = 0
     i = 0
     while not done and i < 2000:
-        action = model.EpsGreedy(observation, env, eps)
+        action = model.EpsGreedy(buffer, calculated_net, observation, env, eps)
         prev_observation = observation
         observation, reward, done, info = env.step(action)
 
@@ -197,7 +198,7 @@ if __name__ == '__main__':
     total_rewards = np.empty(N)
     for n in range(N):
         eps_start = 1.0
-        totalreward = play_one(env, model, train_model, eps_start, copy_period, optimizer, buffer)
+        totalreward = play_one(env, model, train_model, eps_start, copy_period, optimizer, buffer, calculated_net)
         total_rewards[n] = totalreward
         if n % 100 == 0:
             print("episode:", n, "total reward:", totalreward, "avg reward (last 100):",
