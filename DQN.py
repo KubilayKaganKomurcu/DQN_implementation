@@ -10,7 +10,7 @@ class dense_network:
         self.weight = tf.Variable(tf.random_normal(shape=(input_size, output_size)))
         self.bias = tf.Variable(np.zeros(output_size).astype(np.float32))
         self.activation_function = activation_function
-        self.parameters = [self.weight]
+        self.parameters = [self.weight, self.bias]
 
     def forward(self, X):
         net = tf.matmul(X, self.weight) + self.bias
@@ -18,50 +18,51 @@ class dense_network:
 
 
 class DQN:
-    def __init__(self, env, layer_sizes, input_size, output_size, session,
-                 max_experiences=10000, min_experiences=50, gamma=0.9, batch_size=50):
+    def __init__(self, env, layer_sizes, input_size, output_size,
+                 max_experiences=10000, min_experiences=100, gamma=0.99, batch_size=30):
         self.gamma = gamma
         self.batch_size = batch_size
         self.max_experiences = max_experiences
         self.min_experiences = min_experiences
         self.experience = {'states': [], 'actions': [], 'rewards': [], 'states_next': [], 'done': []}
         self.N = 0
-        self.session = session
         self.observation = env.reset()
         self.observation_size = self.observation.shape[0]
-
 
         self.layers = []
         first_layer = dense_network(input_size, layer_sizes[0])
         self.layers.append(first_layer)
         middle_layer = dense_network(layer_sizes[0], layer_sizes[1])
         self.layers.append(middle_layer)
-        final_layer = dense_network(layer_sizes[1], output_size, lambda x: x)
+        final_layer = dense_network(layer_sizes[1], output_size)
         self.layers.append(final_layer)
 
         self.parameters = []
         for layer in self.layers:
             self.parameters += layer.parameters
-        
+
         self.states = tf.placeholder(tf.float32, shape=(None, input_size), name='state')
-        self.actions = tf.placeholder(tf.int32, shape=(None, ), name='action')
-        self.targets = tf.placeholder(tf.float32, shape=(None, ), name='target')
+        self.actions = tf.placeholder(tf.int32, shape=(None,), name='action')
+        self.targets = tf.placeholder(tf.float32, shape=(None,), name='target')
 
+        y = self.states
         for layer in self.layers:
-            states = layer.forward(self.states)
+            y = layer.forward(y)
 
-        self.calculated_net = states
+        z = y
+        self.calculated_net = z
 
         one_hot_vector_actions = tf.one_hot(self.actions, 2)
-        selected_action = tf.reduce_sum(self.targets * one_hot_vector_actions, reduction_indices=[1])
+        selected_action = tf.reduce_sum(z * one_hot_vector_actions, reduction_indices=[1])
 
         # Q_opt = rewards + self.gamma * tf.reduce_max(Q)
         # Q_next_opt = rewards + self.gamma * tf.reduce_max(Q_next)
 
-        loss = tf.reduce_sum(tf.square(self.calculated_net - selected_action))
+        loss = tf.reduce_sum(tf.square(self.targets - selected_action))
         self.optimizer = tf.train.AdamOptimizer(0.001).minimize(loss)
 
-    
+    def start_session(self, session):
+        self.session = session
 
     def add_experience(self, states, actions, rewards, states_next, done):
         if len(self.experience['states']) >= self.max_experiences:
@@ -75,13 +76,6 @@ class DQN:
         self.experience['rewards'].append(rewards)
         self.experience['states_next'].append(states_next)
         self.experience['done'].append(done)
-
-
-
-
-
-
-
 
     def EpsGreedy(self, observation, env, eps_start=1):
 
@@ -99,8 +93,8 @@ class DQN:
 
     def predict(self, state):
 
-        two_d_state = np.atleast_2d(state)
-        return self.session.run(self.calculated_net, feed_dict={self.actions: two_d_state})
+
+        return self.session.run(self.calculated_net, feed_dict={self.states: state})
 
     def train(self, target):
 
@@ -120,8 +114,8 @@ class DQN:
 
         self.session.run(self.optimizer, feed_dict={
             self.states: states,
-            self.actions: actions,
-            self.targets: targets}
+            self.targets: targets,
+            self.actions: actions}
                          )
 
     def copy_parameters(self, other):
@@ -167,23 +161,19 @@ if __name__ == '__main__':
     output_size = env.action_space.n
     layer_sizes = [200, 200]
 
+    model = DQN(env, layer_sizes, input_size, output_size)
+    train_model = DQN(env, layer_sizes, input_size, output_size)
     init = tf.global_variables_initializer()
     session = tf.InteractiveSession()
-
-    model = DQN(env, layer_sizes, input_size, output_size, session)
-
-    train_model = DQN(env, layer_sizes, input_size, output_size, session)
-
+    session.run(init)
+    model.start_session(session)
+    train_model.start_session(session)
 
 
 
-
-
-
-
-    N = 500
-    total_rewards = np.empty(N)
-    for n in range(N):
+    Nu = 500
+    total_rewards = np.empty(Nu)
+    for n in range(Nu):
         eps_start = 1.0
         totalreward = play_one(env, model, train_model, eps_start, copy_period)
         total_rewards[n] = totalreward
