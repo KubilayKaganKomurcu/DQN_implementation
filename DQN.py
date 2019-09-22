@@ -83,9 +83,9 @@ class DQN:
         self.experience['states_next'].append(states_next)
         self.experience['done'].append(done)
 
-    def EpsGreedy(self, observation, env, eps):
+    def EpsGreedy(self, observation, env, eps_start=1):
 
-
+        eps = eps_start / (np.sqrt(self.N + 1))  ######################
         prob = np.random.random()
 
         if prob < eps:
@@ -180,7 +180,7 @@ if __name__ == '__main__':
     Nu = 500
     total_rewards = np.empty(Nu)
     for n in range(Nu):
-        eps = 1.0/np.sqrt(n+1)
+        eps_start = 1.0  #1.0/np.sqrt(n+1)
         totalreward = play_one(env, model, train_model, eps, copy_period)
         total_rewards[n] = totalreward
         if n % 100 == 0:
