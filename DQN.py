@@ -3,10 +3,13 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import gym
 from gym import wrappers
+import os
+import sys
+from datetime import datetime
 
 
 class dense_network:
-    def __init__(self, input_size, output_size, activation_function=tf.nn.relu):
+    def __init__(self, input_size, output_size, activation_function=tf.nn.tanh):
         self.weight = tf.Variable(tf.random_normal(shape=(input_size, output_size)))
         self.bias = tf.Variable(np.zeros(output_size).astype(np.float32))
         self.activation_function = activation_function
@@ -19,7 +22,7 @@ class dense_network:
 
 class DQN:
     def __init__(self, env, layer_sizes, input_size, output_size,
-                 max_experiences=10000, min_experiences=100, gamma=0.99, batch_size=30):
+                 max_experiences=10000, min_experiences=50, gamma=0.99, batch_size=50):
         self.gamma = gamma
         self.batch_size = batch_size
         self.max_experiences = max_experiences
@@ -34,7 +37,7 @@ class DQN:
         self.layers.append(first_layer)
         middle_layer = dense_network(layer_sizes[0], layer_sizes[1])
         self.layers.append(middle_layer)
-        final_layer = dense_network(layer_sizes[1], output_size)
+        final_layer = dense_network(layer_sizes[1], output_size, lambda x: x)
         self.layers.append(final_layer)
 
         self.parameters = []
@@ -59,8 +62,11 @@ class DQN:
         # Q_next_opt = rewards + self.gamma * tf.reduce_max(Q_next)
 
         loss = tf.reduce_sum(tf.square(self.targets - selected_action))
-        self.optimizer = tf.train.AdamOptimizer(0.001).minimize(loss)
+        self.optimizer = tf.train.AdamOptimizer(1e-2).minimize(loss)
+        #self.optimizer = tf.train.AdagradOptimizer(1e-2).minimize(loss)
 
+        #self.optimizer = tf.train.MomentumOptimizer(1e-3, momentum=0.9).minimize(loss)
+        #self.optimizer = tf.train.GradientDescentOptimizer(1e-4).minimize(loss)
     def start_session(self, session):
         self.session = session
 
@@ -77,9 +83,9 @@ class DQN:
         self.experience['states_next'].append(states_next)
         self.experience['done'].append(done)
 
-    def EpsGreedy(self, observation, env, eps_start=1):
+    def EpsGreedy(self, observation, env, eps):
 
-        eps = eps_start / (np.sqrt(self.N + 1))
+
         prob = np.random.random()
 
         if prob < eps:
@@ -174,8 +180,8 @@ if __name__ == '__main__':
     Nu = 500
     total_rewards = np.empty(Nu)
     for n in range(Nu):
-        eps_start = 1.0
-        totalreward = play_one(env, model, train_model, eps_start, copy_period)
+        eps = 1.0/np.sqrt(n+1)
+        totalreward = play_one(env, model, train_model, eps, copy_period)
         total_rewards[n] = totalreward
         if n % 100 == 0:
             print("episode:", n, "total reward:", totalreward, "avg reward (last 100):",
@@ -188,7 +194,10 @@ if __name__ == '__main__':
     plt.title("Rewards")
     plt.show()
 
-    env = wrappers.Monitor(env, 'shadow_cartpole_dir')
+    if 'monitor' in sys.argv:
+        filename = os.path.basename(__file__).split('.')[0]
+        monitor_dir = './' + filename + '_' + str(datetime.now())
+        env = wrappers.Monitor(env, monitor_dir)
 
 '''
 env = gym.make('CartPole-v0')
@@ -224,6 +233,9 @@ def initialize_network(self, input_size):
         Q = reward + self.gamma *
         
         
+        
+        
+        eps = eps_start / (np.sqrt(self.N + 1))######################
         
         
         
