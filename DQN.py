@@ -194,10 +194,8 @@ if __name__ == '__main__':
     plt.title("Rewards")
     plt.show()
 
-    if 'monitor' in sys.argv:
-        filename = os.path.basename(__file__).split('.')[0]
-        monitor_dir = './' + filename + '_' + str(datetime.now())
-        env = wrappers.Monitor(env, monitor_dir)
+
+    env = wrappers.Monitor(env, 'shadow_cartpole_dir')
 
 '''
 env = gym.make('CartPole-v0')
