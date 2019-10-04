@@ -3,12 +3,9 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import gym
 from gym import wrappers
-import os
-import sys
-from datetime import datetime
 
 
-class dense_network:
+class DenseNetwork:
     def __init__(self, input_size, output_size, activation_function=tf.nn.tanh):
         self.weight = tf.Variable(tf.random_normal(shape=(input_size, output_size)))
         self.bias = tf.Variable(np.zeros(output_size).astype(np.float32))
@@ -33,11 +30,11 @@ class DQN:
         self.observation_size = self.observation.shape[0]
 
         self.layers = []
-        first_layer = dense_network(input_size, layer_sizes[0])
+        first_layer = DenseNetwork(input_size, layer_sizes[0])
         self.layers.append(first_layer)
-        middle_layer = dense_network(layer_sizes[0], layer_sizes[1])
+        middle_layer = DenseNetwork(layer_sizes[0], layer_sizes[1])
         self.layers.append(middle_layer)
-        final_layer = dense_network(layer_sizes[1], output_size, lambda x: x)
+        final_layer = DenseNetwork(layer_sizes[1], output_size, lambda x: x)
         self.layers.append(final_layer)
 
         self.parameters = []
@@ -55,7 +52,7 @@ class DQN:
         z = y
         self.calculated_net = z
 
-        one_hot_vector_actions = tf.one_hot(self.actions, 2)
+        one_hot_vector_actions = tf.one_hot(self.actions, output_size)
         selected_action = tf.reduce_sum(z * one_hot_vector_actions, reduction_indices=[1])
 
         # Q_opt = rewards + self.gamma * tf.reduce_max(Q)
@@ -63,10 +60,11 @@ class DQN:
 
         loss = tf.reduce_sum(tf.square(self.targets - selected_action))
         self.optimizer = tf.train.AdamOptimizer(1e-2).minimize(loss)
-        #self.optimizer = tf.train.AdagradOptimizer(1e-2).minimize(loss)
+        # self.optimizer = tf.train.AdagradOptimizer(1e-2).minimize(loss)
 
-        #self.optimizer = tf.train.MomentumOptimizer(1e-3, momentum=0.9).minimize(loss)
-        #self.optimizer = tf.train.GradientDescentOptimizer(1e-4).minimize(loss)
+        # self.optimizer = tf.train.MomentumOptimizer(1e-3, momentum=0.9).minimize(loss)
+        # self.optimizer = tf.train.GradientDescentOptimizer(1e-4).minimize(loss)
+
     def start_session(self, session):
         self.session = session
 
@@ -98,7 +96,6 @@ class DQN:
         return action
 
     def predict(self, state):
-
 
         return self.session.run(self.calculated_net, feed_dict={self.states: state})
 
@@ -167,79 +164,58 @@ if __name__ == '__main__':
     output_size = env.action_space.n
     layer_sizes = [200, 200]
 
+
     model = DQN(env, layer_sizes, input_size, output_size)
     train_model = DQN(env, layer_sizes, input_size, output_size)
     init = tf.global_variables_initializer()
+
     session = tf.InteractiveSession()
     session.run(init)
+    saver = tf.train.Saver()
+    saver.restore(session, "/tmp/model6.ckpt")
     model.start_session(session)
     train_model.start_session(session)
-
-
 
     Nu = 500
     total_rewards = np.empty(Nu)
     for n in range(Nu):
-        eps_start = 1.0  #1.0/np.sqrt(n+1)
-        totalreward = play_one(env, model, train_model, eps, copy_period)
+        eps_start = 1.0  # 1.0/np.sqrt(n+1)
+        totalreward = play_one(env, model, train_model, eps_start, copy_period)
         total_rewards[n] = totalreward
         if n % 100 == 0:
-            print("episode:", n, "total reward:", totalreward, "avg reward (last 100):",
+            print("episode:", n, "  most recent reward:", totalreward, "  avg reward (last 100):",
                   total_rewards[max(0, n - 100):(n + 1)].mean())
+
 
     print("avg reward for last 100 episodes:", total_rewards[-100:].mean())
     print("total steps:", total_rewards.sum())
-
+    save_path = saver.save(session, "/tmp/model6.ckpt")
     plt.plot(total_rewards)
     plt.title("Rewards")
     plt.show()
 
-
-    env = wrappers.Monitor(env, 'shadow_cartpole_dir')
+    env = wrappers.Monitor(env, 'shadow_cartpole_dir2', force=True)
 
 '''
-env = gym.make('CartPole-v0')
+model: best trained model
+model2: averagely trained, some mistakes were made
+model3: bad
+model4: really bad
+model5: experimented a lot and gone buggy
+model6: current experimentations 
 
-for i_episode in range(20):
+all above models have the parameters;
+     activation function: tanh
+     max_experiences=10000
+     min_experiences=50
+     gamma=0.99
+     batch_size=50
+     copy_period = 50
+     layer_sizes = [200, 200]
+     Nu = 500
+     eps_start = 1.0  #DECAYING FUNCTION EPS: 1.0/np.sqrt(n+1)
 
-    observation = env.reset()
 
-    for t in range(100):
-        env.render()
-        print(observation)
-        action = env.action_space.sample()
-        observation, reward, done, info = env.step(action)
 
-        if done:
-            print("Episode finished after {} timesteps".format(t + 1))
-            break
 
-env.close()
-
-def initialize_network(self, input_size):
-        states_next = tf.placeholder(tf.float32, shape=(None, input_size), name='state_next')
-        rewards = tf.placeholder(tf.float32, shape=(None), name='reward')
-        # done = tf.placeholder(tf.float32, shape=(None,), name='done')
-
-        buffer = [states, actions, rewards, states_next, targets]
-
-        return buffer
-
-    def One_Round(self):
-        action = self.env.action_space.sample()
-        observation, reward, done, info = self.env.step(action)
-        Q = reward + self.gamma *
-        
-        
-        
-        
-        eps = eps_start / (np.sqrt(self.N + 1))######################
-        
-        
-        
-    DQN = DQN()
-    env = DQN.initialize_environment()
-    observation, observation_size = DQN.initialize_observation(env)
-    buffer = DQN.initialize_network(observation_size)
-    calculated_net, optimizer = DQN.Optimizer(buffer)
 '''
